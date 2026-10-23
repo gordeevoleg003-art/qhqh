@@ -1,0 +1,10 @@
+*.db
+*.sqlite
+*.sqlite3
+*.log
+__pycache__/
+*.pyc
+.env
+config.py
+game_bot.db
+run_test.py
