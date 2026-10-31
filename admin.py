@@ -6,8 +6,8 @@ import json
 
 DB_PATH = "game_bot.db"
 
-# ⚠️ ВСТАВЬ СЮДА СВОЙ ТОКЕН ОТ BOTFATHER
-BOT_TOKEN = "8703857750:AAGWCvf_kgaMyigpNSDfwyLFzS2Sl8ppLig" 
+# ⚠️ ТОКЕН ДЛЯ УВЕДОМЛЕНИЙ (впиши свой, если хочешь, чтобы бот писал игрокам)
+BOT_TOKEN = "8703857750:AAGWCvf_kgaMyigpNSDfwyLFzS2Sl8ppLig"
 
 def big_normalize(value):
     try:
@@ -22,20 +22,19 @@ def get_conn():
 
 def send_tg_message(chat_id, text):
     if "ТВОЙ_ТОКЕН_ЗДЕСЬ" in BOT_TOKEN or not BOT_TOKEN:
-        print("⚠️ Токен не указан, сообщение не отправлено.")
         return
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         data = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
         urllib.request.urlopen(req, timeout=5)
-    except Exception as e:
-        print(f"⚠️ Ошибка отправки: {e}")
+    except Exception:
+        pass
 
 def show_help():
     print("""
 ======================================================
-🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v5.0)
+🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v6.0)
 ======================================================
 1. Деньги и Валюта:
    money ID СУММА       (Установить баланс)
@@ -43,39 +42,31 @@ def show_help():
    frik ID СУММА        (Установить FC)
    addfrik ID СУММА     (Добавить FC)
 
-2. Модерация (с отправкой в ЛС):
+2. Модерация:
    ban ID ДНИ ПРИЧИНА   (Забанить, 0 - навсегда)
    unban ID             (Разбанить)
-   mute ID МИНУТЫ ПРИЧИНА (Мут на любое время)
+   mute ID МИНУТЫ ПРИЧИНА (Мут)
 
 3. Игрок:
    role ID УРОВЕНЬ      (Админка 1-7, 0 - снять)
    title ID ТЕКСТ       (Кастомный титул)
-   deltitle ID ТЕКСТ    (Снять кастомный титул)
-   reset ID             (Полный сброс)
+   reset ID             (Сброс одного игрока)
    reset_cd ID          (Сброс кулдаунов)
-   res ID wood 1000     (Ресурсы: wood, iron, diamond)
-   card ID РЕДКОСТЬ     (Карточка: common, rare, epic, legendary)
-   status ID КЛЮЧ       (Выдать статус: dark_lord, poseidon, moroznik)
-   vip ID ДНИ           (Выдать VIP на N дней)
-   fp ID УРОВЕНЬ        (Установить уровень FRIK PASS)
+   res ID wood 1000     (Ресурсы)
+   card ID РЕДКОСТЬ     (Карточка)
+   status ID КЛЮЧ       (Статус)
+   vip ID ДНИ           (VIP)
 
-4. Бизнесы:
-   biz ID ТИП           (Выдать: apteka1, banda, lombard...)
-   delbiz ТИП           (Забрать на аукцион)
-
-5. Экономика (Глобально):
+4. Глобальное:
    tax ПРОЦЕНТ          (Налог)
    treasury СУММА       (Казна)
-   mafia ПРОЦЕНТ        (Лимит мафии)
-   mafia_cur ПРОЦЕНТ    (Ставка мафии)
-   clear_rozygrysh      (Отменить розыгрыш)
-   clear_sbor           (Отменить сбор)
+   mafia ПРОЦЕНТ        (Лимит)
    clear_auctions       (Отменить аукционы)
+   
+5. ⚠️ HARD RESET:
+   hardreset            (ПОЛНЫЙ СБРОС ВСЕГО, кроме аккаунтов)
 ======================================================
 """)
-
-# ==================== ФУНКЦИИ ====================
 
 def set_money(uid, amount):
     conn = get_conn(); c = conn.cursor()
@@ -127,20 +118,14 @@ def give_title(uid, text):
     print(f"✅ Титул '{text}' выдан {uid}")
     conn.commit(); conn.close()
 
-def del_title(uid, text):
-    conn = get_conn(); c = conn.cursor()
-    tk = "custom_" + text[:30]
-    c.execute("DELETE FROM titles WHERE user_id = ? AND title_key = ?", (uid, tk))
-    print(f"✅ Титул '{text}' снят с {uid}")
-    conn.commit(); conn.close()
-
 def reset_user(uid):
     conn = get_conn(); c = conn.cursor()
     c.execute("UPDATE users SET balance = ?, frikcoins = 0, is_left = 0 WHERE user_id = ?", (big_normalize(15000000), uid))
-    for t in ["titles", "title_stats", "case_stats", "roulette_bets", "crypto_portfolio", "staff_roles", "mutes", "bans", "user_vip", "user_statuses"]:
-        c.execute(f"DELETE FROM {t} WHERE user_id = ?", (uid,))
+    for t in ["titles", "title_stats", "case_stats", "roulette_bets", "crypto_portfolio", "staff_roles", "mutes", "bans", "user_vip", "user_statuses", "user_cards", "card_cooldowns"]:
+        try: c.execute(f"DELETE FROM {t} WHERE user_id = ?", (uid,))
+        except: pass
     conn.commit(); conn.close()
-    print(f"✅ Игрок {uid} полностью сброшен.")
+    print(f"✅ Игрок {uid} полностью сброшен (баланс 15кк).")
 
 def reset_cd(uid):
     conn = get_conn(); c = conn.cursor()
@@ -169,11 +154,9 @@ def ban_user(uid, days=0, reason="Console Ban"):
         until = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
     c.execute("INSERT OR REPLACE INTO bans (user_id, reason, author_id, created_at, until) VALUES (?, ?, 0, ?, ?)", 
               (uid, reason, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), until))
-    print(f"✅ Игрок {uid} забанен. Причина: {reason}. Срок: {'навсегда' if days == 0 else str(days) + ' дн.'}")
+    print(f"✅ Игрок {uid} забанен. Срок: {'навсегда' if days == 0 else str(days) + ' дн.'}")
     conn.commit(); conn.close()
-    
-    msg = f"🚫 <b>ТЫ ЗАБАНЕН В БОТЕ</b>\n\n📅 Срок: {'навсегда' if days == 0 else str(days) + ' дн.'}\n📝 Причина: {reason}"
-    send_tg_message(uid, msg)
+    send_tg_message(uid, f"🚫 <b>ТЫ ЗАБАНЕН В БОТЕ</b>\n\n📅 Срок: {'навсегда' if days == 0 else str(days) + ' дн.'}\n📝 Причина: {reason}")
 
 def unban_user(uid):
     conn = get_conn(); c = conn.cursor()
@@ -188,9 +171,7 @@ def mute_user(uid, minutes=60, reason="Console Mute"):
     c.execute("INSERT OR REPLACE INTO mutes (user_id, until, reason, author_id) VALUES (?, ?, ?, 0)", (uid, until, reason))
     print(f"✅ Игрок {uid} замьючен на {minutes} минут.")
     conn.commit(); conn.close()
-    
-    msg = f"🔇 <b>Ты замьючен на {minutes} мин</b>\nПричина: {reason}"
-    send_tg_message(uid, msg)
+    send_tg_message(uid, f"🔇 <b>Ты замьючен на {minutes} мин</b>\nПричина: {reason}")
 
 def set_tax(percent):
     conn = get_conn(); c = conn.cursor()
@@ -239,29 +220,6 @@ def give_vip(uid, days):
     print(f"✅ Игроку {uid} выдан VIP на {days} дней")
     conn.commit(); conn.close()
 
-def set_fp_level(uid, level):
-    conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT id FROM fp_season WHERE status = 'active' LIMIT 1")
-    season = c.fetchone()
-    if not season:
-        print("❌ Нет активного сезона FRIK PASS!"); conn.close(); return
-    c.execute("UPDATE fp_progress SET level = ? WHERE user_id = ? AND season_id = ?", (level, uid, season[0]))
-    print(f"✅ Игроку {uid} установлен уровень FRIK PASS: {level}")
-    conn.commit(); conn.close()
-
-def clear_rozygrysh():
-    conn = get_conn(); c = conn.cursor()
-    c.execute("UPDATE rozygrysh SET status = 'cancelled' WHERE status = 'active'")
-    c.execute("UPDATE biz_businesses SET status = 'owned' WHERE status = 'rozygrysh'")
-    print("✅ Активный розыгрыш отменён.")
-    conn.commit(); conn.close()
-
-def clear_sbor():
-    conn = get_conn(); c = conn.cursor()
-    c.execute("UPDATE sbor SET status = 'cancelled' WHERE status = 'active'")
-    print("✅ Активный сбор отменён.")
-    conn.commit(); conn.close()
-
 def clear_auctions():
     conn = get_conn(); c = conn.cursor()
     c.execute("UPDATE auctions SET status = 'cancelled' WHERE status = 'active'")
@@ -269,24 +227,69 @@ def clear_auctions():
     print("✅ Все аукционы отменены.")
     conn.commit(); conn.close()
 
-def info_user(uid):
+def hard_reset():
     conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT balance, frikcoins FROM users WHERE user_id = ?", (uid,))
-    u = c.fetchone()
-    if not u:
-        print("❌ Игрок не найден."); return
-    bal = int(str(u[0]).lstrip('0') or '0')
-    fc = u[1] or 0
-    print(f"👤 Игрок {uid}: Баланс: {bal}, FC: {fc}")
-    conn.close()
+    print("⚠️ НАЧАТ ПОЛНЫЙ СБРОС БАЗЫ (КРОМЕ АККАУНТОВ)...")
+    
+    tables_to_clear = [
+        "transactions", "roulette_history", "duels", "invites", "promocodes", "promo_uses",
+        "case_stats", "special_cases", "rl_blocks", "titles", "title_stats", "roulette_bets",
+        "roulette_last_bets", "auctions", "auction_bets", "families", "family_members",
+        "family_invites", "family_duels", "family_season", "biz_businesses", "biz_history",
+        "biz_player_apteka", "biz_player_bolnitsa", "biz_trades", "biz_daily_stats",
+        "biz_upgrades", "lombard_loans", "lombard_cooldowns", "lombard_block",
+        "rozygrysh", "rozygrysh_tickets", "rozygrysh_cooldown", "craft_resources",
+        "craft_buffs", "craft_history", "user_states_db", "users_left", "spam_bans",
+        "fake_money_log", "court_cases", "court_judge_requests", "frozen_money",
+        "league_bets", "shield_list", "sbor", "sbor_bets", "polls", "poll_votes",
+        "poll_messages", "advokats", "advokat_deals", "advokat_requests", "biz_trades",
+        "house_trades", "crypto_coins", "crypto_portfolio", "crypto_history",
+        "fp_season", "fp_progress", "fp_history", "staff_roles", "help_questions",
+        "help_stats", "staff_log", "title_give_log", "warnings", "mutes", "bans",
+        "event_active", "event_tickets", "user_snowballs", "user_statuses",
+        "event_games", "event_game_players", "event_game_history", "event_case_log",
+        "containers", "container_bets", "mystic_titles", "container_history",
+        "user_vip", "family_shield", "fake_balance", "user_cards", "card_cooldowns", "card_history"
+    ]
+    
+    for table in tables_to_clear:
+        try:
+            c.execute(f"DELETE FROM {table}")
+        except:
+            pass
 
-def count_users():
-    conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM users WHERE is_left = 0")
-    print(f"👥 Всего активных игроков: {c.fetchone()[0]}")
-    conn.close()
+    # Обнуляем игроков (но не удаляем)
+    c.execute("UPDATE users SET balance = '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000', frikcoins = 0, is_left = 0")
 
-# ==================== ОБРАБОТКА КОМАНД ====================
+    # Сброс настроек
+    c.execute("UPDATE treasury SET balance = '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'")
+    c.execute("UPDATE settings SET value = '5' WHERE key = 'tax_percent'")
+    c.execute("UPDATE settings SET value = 'True' WHERE key = 'roulette_enabled'")
+    c.execute("UPDATE mafia_settings SET max_percent = 20, current_percent = 20, last_collect = NULL")
+    c.execute("UPDATE rozygrysh_cooldown SET last_run = NULL")
+    c.execute("UPDATE container_schedule SET last_base = NULL, last_bonus = NULL, last_secret = NULL")
+    
+    c.execute("UPDATE houses SET owner_id = 0, bought_at = NULL")
+    c.execute("DELETE FROM phones")
+    
+    # Пересоздаём бизнесы (базовые)
+    c.execute("DELETE FROM biz_businesses")
+    auction_end = (datetime.datetime.now() + datetime.timedelta(hours=5)).strftime("%Y-%m-%d %H:%M:%S")
+    for bt, name in [
+        ('apteka1', '🏥 Аптека №1'), ('apteka2', '🏥 Аптека №2'),
+        ('apteka3', '🏥 Аптека №3'), ('bolnitsa1', '🩺 Больница №1'),
+        ('bolnitsa2', '🩺 Больница №2'), ('banda', '🔫 Банда'),
+        ('sud1', '⚖️ Суд №1'), ('sud2', '⚖️ Суд №2'),
+        ('advokat', '⚖️ Адвокатская контора'), ('lombard', '🏪 Ломбард'),
+    ]:
+        c.execute("INSERT INTO biz_businesses (biz_type, name, min_bet, status, auction_end) VALUES (?, ?, '200000000', 'auction', ?)", (bt, name, auction_end))
+    
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("INSERT INTO biz_businesses (biz_type, name, min_bet, owner_id, status, last_payment) VALUES ('mafia', '🎩 Мафия', '200000000', 6548175188, 'owned', ?)", (now_str,))
+    c.execute("INSERT INTO biz_businesses (biz_type, name, min_bet, owner_id, status, last_payment) VALUES ('league', '⚽ Лига чемпионов', '200000000', 6548175188, 'owned', ?)", (now_str,))
+
+    conn.commit(); conn.close()
+    print("✅ ПОЛНЫЙ СБРОС ЗАВЕРШЕН! Все таблицы очищены, бизнесы пересозданы.")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -300,7 +303,6 @@ if __name__ == "__main__":
             elif cmd == "addfrik" and len(sys.argv) >= 4: add_frik(int(sys.argv[2]), int(sys.argv[3]))
             elif cmd == "role" and len(sys.argv) >= 4: set_role(int(sys.argv[2]), int(sys.argv[3]))
             elif cmd == "title" and len(sys.argv) >= 4: give_title(int(sys.argv[2]), " ".join(sys.argv[3:]))
-            elif cmd == "deltitle" and len(sys.argv) >= 4: del_title(int(sys.argv[2]), " ".join(sys.argv[3:]))
             elif cmd == "reset" and len(sys.argv) >= 3: reset_user(int(sys.argv[2]))
             elif cmd == "reset_cd" and len(sys.argv) >= 3: reset_cd(int(sys.argv[2]))
             elif cmd == "biz" and len(sys.argv) >= 4: biz_give(int(sys.argv[2]), sys.argv[3])
@@ -324,12 +326,8 @@ if __name__ == "__main__":
             elif cmd == "card" and len(sys.argv) >= 4: give_card(int(sys.argv[2]), sys.argv[3])
             elif cmd == "status" and len(sys.argv) >= 4: give_status(int(sys.argv[2]), sys.argv[3])
             elif cmd == "vip" and len(sys.argv) >= 4: give_vip(int(sys.argv[2]), int(sys.argv[3]))
-            elif cmd == "fp" and len(sys.argv) >= 4: set_fp_level(int(sys.argv[2]), int(sys.argv[3]))
-            elif cmd == "clear_rozygrysh": clear_rozygrysh()
-            elif cmd == "clear_sbor": clear_sbor()
             elif cmd == "clear_auctions": clear_auctions()
-            elif cmd == "info" and len(sys.argv) >= 3: info_user(int(sys.argv[2]))
-            elif cmd == "count_users": count_users()
+            elif cmd == "hardreset": hard_reset()
             else:
                 print("❌ Ошибка. Напиши 'python admin.py' для списка команд.")
         except Exception as e:
