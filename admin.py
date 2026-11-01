@@ -7,7 +7,8 @@ import os
 import shutil
 
 DB_PATH = "game_bot.db"
-BOT_TOKEN = "8703857750:AAFx0cjnSg2R7rUu5TZXQLyaTEjBK1sXo18" # ЗАМЕНИ НА НОВЫЙ!
+BOT_TOKEN = "8703857750:AAFx0cjnSg2R7rUu5TZXQLyaTEjBK1sXo18"
+CHAT_ID_NEWS = -1003825044369 # Единый чат для всех новостей
 
 def big_normalize(value):
     try: v = int(value)
@@ -24,23 +25,26 @@ def send_tg_message(chat_id, text):
         data = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
         urllib.request.urlopen(req, timeout=5)
-    except: pass
+    except Exception as e:
+        print(f"Ошибка отправки: {e}")
 
 def show_help():
     print("""
 ======================================================
-🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v8.0)
+🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v9.0)
 ======================================================
 1. Игроки и Экономика:
    money/addmoney/frik/addfrik, role, title, reset, reset_cd, res, card, status, vip
    tax, treasury, mafia, clear_auctions, setmult, freeze, unfreeze
 2. Модерация:
-   ban ID ДНИ ПРИЧИНА, unban ID, mute ID МИНУТЫ ПРИЧИНА, unmuteall, banlist, mutelist
-   allmoney СУММА, giftall КЕЙС
+   ban, unban, mute, unmuteall, banlist, mutelist, allmoney
 3. АНАЛИТИКА:
    logs ID, spy ID, top, checkdb, dbbackup
-4. СЕМЬИ:
-   setfamily ID ИМЯ, kickfamily ID, family_season_start, family_season_end
+4. ИВЕНТЫ:
+   race_start (Начать гонку дня)
+   race_end (Завершить гонку и выдать награды)
+   family_season_end (Награды семьям)
+   family_season_start (Новый сезон семей)
 5. HARD RESET:
    hardreset
 ======================================================
@@ -169,6 +173,7 @@ def unfreeze_player(uid):
     conn.commit(); conn.close()
     print(f"✅ Игрок {uid} разморожен.")
 
+
 # --- МОДЕРАЦИЯ ---
 def ban_user(uid, days=0, reason="Console Ban"):
     conn = get_conn(); c = conn.cursor()
@@ -288,7 +293,7 @@ def kick_from_family(uid):
     else: print(f"❌ Игрок {uid} не был в семье.")
     conn.commit(); conn.close()
 
-def start_family_season():
+def family_season_start():
     conn = get_conn(); c = conn.cursor()
     c.execute("UPDATE families SET reputation = 0, last_duel = NULL")
     c.execute("SELECT value FROM settings WHERE key = 'family_season_number'")
@@ -299,8 +304,7 @@ def start_family_season():
     conn.commit(); conn.close()
     print(f"🏁 НОВЫЙ СЕЗОН СЕМЕЙ #{new_season} ЗАПУЩЕН! Репутация обнулена.")
 
-
-def end_family_season_and_reward():
+def family_season_end():
     print("🏆 ЗАВЕРШЕНИЕ СЕЗОНА СЕМЕЙ (ТОП-10)...")
     conn = get_conn()
     c = conn.cursor()
@@ -344,7 +348,6 @@ def end_family_season_and_reward():
         if rew["title"]:
             c.execute("INSERT OR IGNORE INTO titles (user_id, title_key, custom_text) VALUES (?, ?, ?)", (owner_id, f"custom_{rew['title']}", rew['title']))
             
-        # --- ОТПРАВКА ЛС ВЛАДЕЛЬЦУ ---
         try:
             cards_text = ""
             for c_key, c_rarity in rew["cards"]:
@@ -362,27 +365,97 @@ def end_family_season_and_reward():
             
     conn.commit()
     conn.close()
-    print("\n✅ НАГРАДЫ ТОП-10 ВЫДАНЫ!")
+    print("\n✅ НАГРАДЫ СЕМЬЯМ ВЫДАНЫ! (Сезон НЕ обнулен)")
 
-    # --- ОТПРАВКА ИТОГОВ В ОБЩИЙ ЧАТ ---
-    chat_id_for_news = -1003825044369 # <--- ВСТАВЬ СЮДА ID СВОЕГО ЧАТА!
-    
     if top_families:
         winners_text = "🏆 <b>ИТОГИ СЕЗОНА СЕМЕЙ!</b> 🏆\n\n"
         medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-        
         for place, (fam_id, fam_name, owner_id, rep) in enumerate(top_families, 1):
             medal = medals.get(place, "🏅")
             if place <= 10: 
                 winners_text += f"{medal} <b>{place} место:</b> {fam_name} (Владелец: <a href='tg://user?id={owner_id}'>{owner_id}</a>) — {rep} ⭐\n"
-                
-        winners_text += "\n🎁 Награды уже начислены владельцам! Проверьте ЛС.\n"
-        winners_text += "🔥 <b>Новый сезон уже начался! Собирайте онлайн и качайте репутацию!</b>"
-        
-        send_tg_message(chat_id_for_news, winners_text)
-        print("📢 Итоги сезона отправлены в общий чат!")
+        winners_text += "\n🎁 Награды начислены владельцам! Проверьте ЛС."
+        send_tg_message(CHAT_ID_NEWS, winners_text)
 
-# --- АНАЛИТИКА ---
+# --- ЕЖЕДНЕВНАЯ ГОНКА ---
+def race_start():
+    conn = get_conn(); c = conn.cursor()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('race_start_time', ?)", (now_str,))
+    conn.commit(); conn.close()
+    print(f"🏁 ГОНКА ДНЯ НАЧАЛАСЬ в {now_str}. Считаем выигрыши в рулетке!")
+    send_tg_message(CHAT_ID_NEWS, "🏁 <b>ГОНКА ДНЯ В РУЛЕТКЕ НАЧАЛАСЬ!</b> 🏁\n\nКто выиграет больше всего за этот период? Погнали!")
+
+def race_end():
+    print("🏁 ЗАВЕРШЕНИЕ ГОНКИ ДНЯ (ТОП-3)...")
+    conn = get_conn()
+    c = conn.cursor()
+    
+    c.execute("SELECT value FROM settings WHERE key = 'race_start_time'")
+    row = c.fetchone()
+    if not row:
+        print("❌ Гонка не была запущена (нет race_start_time).")
+        conn.close()
+        return
+    
+    start_time = row[0]
+    print(f"Считаем выигрыши начиная с: {start_time}")
+    
+    c.execute("""SELECT user_id, SUM(CAST(amount AS INTEGER)) as total_won 
+                 FROM transactions 
+                 WHERE type = 'roulette_win' 
+                 AND timestamp >= ? 
+                 GROUP BY user_id 
+                 ORDER BY total_won DESC LIMIT 3""", (start_time,))
+    top_players = c.fetchall()
+    
+    if not top_players:
+        print("❌ За это время никто не выигрывал в рулетке.")
+        conn.close()
+        return
+
+    rewards = {
+        1: {"points": 15_000_000_000, "frik": 15000, "title": "👑 Властелин дня"},
+        2: {"points": 5_000_000_000, "frik": 5000, "title": "⚔️ Претендент"},
+        3: {"points": 2_000_000_000, "frik": 2000, "title": "🥉 Бронзовый игрок"}
+    }
+
+    news_text = "🏁 <b>ИТОГИ ГОНКИ ДНЯ В РУЛЕТКЕ!</b> 🏁\n\n"
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+
+    for place, (owner_id, total_won) in enumerate(top_players, 1):
+        rew = rewards.get(place)
+        if not rew:
+            continue
+            
+        print(f"🏅 Место {place}: ID {owner_id} (Выиграл: {total_won})")
+        
+        c.execute("SELECT balance FROM users WHERE user_id = ?", (owner_id,))
+        row = c.fetchone()
+        if row:
+            cur = int(str(row[0]).lstrip('0') or '0')
+            c.execute("UPDATE users SET balance = ? WHERE user_id = ?", (big_normalize(cur + rew["points"]), owner_id))
+        
+        if rew["frik"] > 0:
+            c.execute("UPDATE users SET frikcoins = COALESCE(frikcoins, 0) + ? WHERE user_id = ?", (rew["frik"], owner_id))
+            
+        if rew["title"]:
+            c.execute("INSERT OR IGNORE INTO titles (user_id, title_key, custom_text) VALUES (?, ?, ?)", (owner_id, f"custom_{rew['title']}", rew['title']))
+            
+        medal = medals.get(place, "🏅")
+        news_text += f"{medal} <b>{place} место:</b> <a href='tg://user?id={owner_id}'>{owner_id}</a> — {total_won:,} 💰\n"
+
+    c.execute("DELETE FROM settings WHERE key = 'race_start_time'")
+    conn.commit()
+    conn.close()
+    
+    news_text += "\n🎁 Награды уже начислены победителям!"
+    send_tg_message(CHAT_ID_NEWS, news_text)
+    print("\n✅ НАГРАДЫ ГОНКИ ВЫДАНЫ!")
+
+
+
+# --- АНАЛИТИКА И УТИЛИТЫ ---
 def show_logs(uid):
     conn = get_conn(); c = conn.cursor()
     c.execute("SELECT first_name, username, registered, last_active FROM users WHERE user_id = ?", (uid,))
@@ -496,8 +569,10 @@ if __name__ == "__main__":
             elif cmd == "delbiz" and len(sys.argv) >= 3: biz_take(sys.argv[2])
             elif cmd == "setfamily" and len(sys.argv) >= 4: set_family_name(int(sys.argv[2]), " ".join(sys.argv[3:]))
             elif cmd == "kickfamily" and len(sys.argv) >= 3: kick_from_family(int(sys.argv[2]))
-            elif cmd == "family_season_start": start_family_season()
-            elif cmd == "family_season_end": end_family_season_and_reward()
+            elif cmd == "family_season_start": family_season_start()
+            elif cmd == "family_season_end": family_season_end()
+            elif cmd == "race_start": race_start()
+            elif cmd == "race_end": race_end()
             elif cmd == "logs" and len(sys.argv) >= 3: show_logs(int(sys.argv[2]))
             elif cmd == "spy" and len(sys.argv) >= 3: spy_user(int(sys.argv[2]))
             elif cmd == "top": show_top()
