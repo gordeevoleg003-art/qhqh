@@ -312,11 +312,7 @@ def end_family_season_and_reward():
         return
 
     rewards = {
-        1: {
-            "points": 7_000_000_000, 
-            "cards": [("akashi", "legendary"), ("akashi", "legendary"), ("kuroko_rare", "rare")], 
-            "title": "👑 Сезонный Чемпион"
-        },
+        1: {"points": 7_000_000_000, "cards": [("akashi", "legendary"), ("akashi", "legendary"), ("kuroko_rare", "rare")], "title": "👑 Сезонный Чемпион"},
         2: {"points": 3_000_000_000, "cards": [("aomine", "epic"), ("kise", "rare")], "title": "🥈 Вице-Чемпион"},
         3: {"points": 1_500_000_000, "cards": [("murasakibara", "epic"), ("momoi", "rare")], "title": "🥉 Бронза"},
         4: {"points": 800_000_000, "cards": [("midorima", "epic"), ("riko", "common")], "title": "Топ-4"},
@@ -347,44 +343,26 @@ def end_family_season_and_reward():
         if rew["title"]:
             c.execute("INSERT OR IGNORE INTO titles (user_id, title_key, custom_text) VALUES (?, ?, ?)", (owner_id, f"custom_{rew['title']}", rew['title']))
             
+        # --- ОТПРАВКА ЛС ВЛАДЕЛЬЦУ ---
+        try:
+            cards_text = ""
+            for c_key, c_rarity in rew["cards"]:
+                cards_text += f"🎴 {c_key} ({c_rarity})\n"
+            msg = (f"🏆 <b>ТВОЯ СЕМЬЯ В ТОПЕ!</b>\n\n"
+                   f"📛 Семья: <b>{fam_name}</b>\n"
+                   f"🏅 Место: <b>{place}</b>\n\n"
+                   f"🎁 <b>Твои награды:</b>\n"
+                   f"💰 {rew['points']:,} поинтов\n"
+                   f"{cards_text}"
+                   f"🏆 Титул: {rew['title']}")
+            send_tg_message(owner_id, msg)
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить ЛС {owner_id}: {e}")
+            
     conn.commit()
     conn.close()
     print("\n✅ НАГРАДЫ ТОП-10 ВЫДАНЫ!")
 
-# --- АНАЛИТИКА ---
-def show_logs(uid):
-    conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT first_name, username, registered, last_active FROM users WHERE user_id = ?", (uid,))
-    u = c.fetchone()
-    if not u: print("❌ Игрок не найден."); return
-    print(f"👤 {u[0]} (@{u[1]}) | ID: {uid}")
-    c.execute("SELECT case_type, opens FROM case_stats WHERE user_id = ?", (uid,))
-    cases = c.fetchall()
-    if cases:
-        print("\n📦 КЕЙСЫ:")
-        for row in cases: print(f"  {row[0]}: {row[1]}")
-    c.execute("SELECT roulette_wins, roulette_losses FROM title_stats WHERE user_id = ?", (uid,))
-    stats = c.fetchone()
-    if stats: print(f"\n🎰 Рулетка: Побед {stats[0]}, Проигрышей {stats[1]}")
-    conn.close()
-
-def spy_user(uid):
-    conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT amount, type, details, timestamp FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 10", (uid,))
-    trans = c.fetchall()
-    print(f"🕵️ ШПИОНАЖ ID {uid}:")
-    if not trans: print("  Нет транзакций.")
-    for t in trans: print(f"  {t[3]} | {t[1]} | {int(str(t[0]).lstrip('0') or '0')} | {t[2]}")
-    conn.close()
-
-def show_top():
-    conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT user_id, first_name, balance FROM users WHERE is_left = 0 ORDER BY CAST(balance AS INTEGER) DESC LIMIT 10")
-    top = c.fetchall()
-    print("\n🏆 ТОП-10 ИГРОКОВ:")
-    for i, row in enumerate(top, 1):
-        print(f"  {i}. {row[1]} (ID: {row[0]}) — {int(str(row[2]).lstrip('0') or '0')}")
-    conn.close()
 
 def db_backup():
     if not os.path.exists("backups"): os.makedirs("backups")
