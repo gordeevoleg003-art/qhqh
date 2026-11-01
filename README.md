@@ -16,7 +16,7 @@
 ## Запуск локально
 
 ```bash
-export BOT_TOKEN="8703857750:AAGWCvf_kgaMyigpNSDfwyLFzS2Sl8ppLig"
+export BOT_TOKEN="8703857750:AAFx0cjnSg2R7rUu5TZXQLyaTEjBK1sXo18"
 export ADMIN_ID="6548175188"
 export CHAT_ID="-1001234567890"
 python bot_cloud.py
