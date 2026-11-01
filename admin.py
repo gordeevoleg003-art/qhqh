@@ -120,11 +120,15 @@ def give_res(uid, res_type, amount):
     print(f"✅ Выдано {amount} {res_type} игроку {uid}")
     conn.commit(); conn.close()
 
-def give_card(uid, rarity):
-    conn = get_conn(); c = conn.cursor()
-    c.execute("INSERT INTO user_cards (user_id, card_key, rarity) VALUES (?, 'custom_card', ?)", (uid, rarity))
-    print(f"✅ Игроку {uid} выдана карточка редкости {rarity}")
-    conn.commit(); conn.close()
+def give_card_silent(uid, card_key, rarity, conn=None):
+    # Если соединение передано снаружи — используем его. Если нет — создаем новое.
+    if conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO user_cards (user_id, card_key, rarity) VALUES (?, ?, ?)", (uid, card_key, rarity))
+    else:
+        new_conn = get_conn(); c = new_conn.cursor()
+        c.execute("INSERT INTO user_cards (user_id, card_key, rarity) VALUES (?, ?, ?)", (uid, card_key, rarity))
+        new_conn.commit(); new_conn.close()
 
 def give_card_silent(uid, card_key, rarity):
     conn = get_conn(); c = conn.cursor()
@@ -339,7 +343,7 @@ def end_family_season_and_reward():
             c.execute("UPDATE users SET balance = ? WHERE user_id = ?", (big_normalize(cur + rew["points"]), owner_id))
         
         for c_key, c_rarity in rew["cards"]:
-            give_card_silent(owner_id, c_key, c_rarity)
+    give_card_silent(owner_id, c_key, c_rarity, conn)
                 
         if rew["title"]:
             c.execute("INSERT OR IGNORE INTO titles (user_id, title_key, custom_text) VALUES (?, ?, ?)", (owner_id, f"custom_{rew['title']}", rew['title']))
