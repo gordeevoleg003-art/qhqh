@@ -373,7 +373,7 @@ def end_family_season_and_reward():
         
         for place, (fam_id, fam_name, owner_id, rep) in enumerate(top_families, 1):
             medal = medals.get(place, "🏅")
-            if place <= 5: 
+            if place <= 10: 
                 winners_text += f"{medal} <b>{place} место:</b> {fam_name} (Владелец: <a href='tg://user?id={owner_id}'>{owner_id}</a>) — {rep} ⭐\n"
                 
         winners_text += "\n🎁 Награды уже начислены владельцам! Проверьте ЛС.\n"
