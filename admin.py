@@ -15,7 +15,7 @@ def big_normalize(value):
     if v < 0: v = 0
     return str(v).zfill(100)
 
-def get_conn(): return sqlite3.connect(DB_PATH)
+def get_conn(): return sqlite3.connect(DB_PATH, timeout=60)
 
 def send_tg_message(chat_id, text):
     if not BOT_TOKEN: return
