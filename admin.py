@@ -343,7 +343,7 @@ def end_family_season_and_reward():
             c.execute("UPDATE users SET balance = ? WHERE user_id = ?", (big_normalize(cur + rew["points"]), owner_id))
         
         for c_key, c_rarity in rew["cards"]:
-        give_card_silent(owner_id, c_key, c_rarity, conn)
+            give_card_silent(owner_id, c_key, c_rarity, conn)
                 
         if rew["title"]:
             c.execute("INSERT OR IGNORE INTO titles (user_id, title_key, custom_text) VALUES (?, ?, ?)", (owner_id, f"custom_{rew['title']}", rew['title']))
