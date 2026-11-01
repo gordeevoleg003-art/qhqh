@@ -31,7 +31,7 @@ def send_tg_message(chat_id, text):
 def show_help():
     print("""
 ======================================================
-🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v9.0)
+🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v9.2)
 ======================================================
 1. Игроки и Экономика:
    money/addmoney/frik/addfrik, role, title, reset, reset_cd, res, card, status, vip
@@ -380,33 +380,38 @@ def family_season_end():
 # --- ЕЖЕДНЕВНАЯ ГОНКА ---
 def race_start():
     conn = get_conn(); c = conn.cursor()
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('race_start_time', ?)", (now_str,))
+    # Запоминаем ID последней транзакции в базе
+    c.execute("SELECT MAX(id) FROM transactions")
+    row = c.fetchone()
+    last_id = row[0] if row and row[0] else 0
+    
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('race_start_id', ?)", (str(last_id),))
     conn.commit(); conn.close()
-    print(f"🏁 ГОНКА ДНЯ НАЧАЛАСЬ в {now_str}. Считаем выигрыши в рулетке!")
-    send_tg_message(CHAT_ID_NEWS, "🏁 <b>ГОНКА ДНЯ В РУЛЕТКЕ НАЧАЛАСЬ!</b> 🏁\n\nКто выиграет больше всего за этот период? Погнали!")
+    
+    print(f"🏁 ГОНКА ДНЯ НАЧАЛАСЬ. Отслеживаем транзакции начиная с ID: {last_id}")
+    send_tg_message(CHAT_ID_NEWS, "🏁 <b>ГОНКА ДНЯ В РУЛЕТКЕ НАЧАЛАСЬ!</b> 🏁\n\nКто выиграет больше всего? Погнали!")
 
 def race_end():
     print("🏁 ЗАВЕРШЕНИЕ ГОНКИ ДНЯ (ТОП-3)...")
     conn = get_conn()
     c = conn.cursor()
     
-    c.execute("SELECT value FROM settings WHERE key = 'race_start_time'")
+    c.execute("SELECT value FROM settings WHERE key = 'race_start_id'")
     row = c.fetchone()
     if not row:
-        print("❌ Гонка не была запущена (нет race_start_time).")
+        print("❌ Гонка не была запущена (нет race_start_id).")
         conn.close()
         return
     
-    start_time = row[0]
-    print(f"Считаем выигрыши начиная с: {start_time}")
+    start_id = int(row[0])
+    print(f"Считаем выигрыши начиная с ID транзакции: {start_id}")
     
     c.execute("""SELECT user_id, SUM(CAST(amount AS INTEGER)) as total_won 
                  FROM transactions 
                  WHERE type = 'roulette_win' 
-                 AND timestamp >= ? 
+                 AND id > ? 
                  GROUP BY user_id 
-                 ORDER BY total_won DESC LIMIT 3""", (start_time,))
+                 ORDER BY total_won DESC LIMIT 3""", (start_id,))
     top_players = c.fetchall()
     
     if not top_players:
@@ -445,15 +450,13 @@ def race_end():
         medal = medals.get(place, "🏅")
         news_text += f"{medal} <b>{place} место:</b> <a href='tg://user?id={owner_id}'>{owner_id}</a> — {total_won:,} 💰\n"
 
-    c.execute("DELETE FROM settings WHERE key = 'race_start_time'")
+    c.execute("DELETE FROM settings WHERE key = 'race_start_id'")
     conn.commit()
     conn.close()
     
     news_text += "\n🎁 Награды уже начислены победителям!"
     send_tg_message(CHAT_ID_NEWS, news_text)
     print("\n✅ НАГРАДЫ ГОНКИ ВЫДАНЫ!")
-
-
 
 # --- АНАЛИТИКА И УТИЛИТЫ ---
 def show_logs(uid):
