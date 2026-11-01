@@ -7,7 +7,7 @@ import os
 import shutil
 
 DB_PATH = "game_bot.db"
-BOT_TOKEN = "8703857750:AAFx0cjnSg2R7rUu5TZXQLyaTEjBK1sXo18" # ЗАМЕНИ НА НОВЫЙ!
+BOT_TOKEN = "8703857750:AAGWCvf_kgaMyigpNSDfwyLFzS2Sl8ppLig" # ЗАМЕНИ НА НОВЫЙ!
 
 def big_normalize(value):
     try: v = int(value)
@@ -299,6 +299,7 @@ def start_family_season():
     conn.commit(); conn.close()
     print(f"🏁 НОВЫЙ СЕЗОН СЕМЕЙ #{new_season} ЗАПУЩЕН! Репутация обнулена.")
 
+
 def end_family_season_and_reward():
     print("🏆 ЗАВЕРШЕНИЕ СЕЗОНА СЕМЕЙ (ТОП-10)...")
     conn = get_conn()
@@ -363,6 +364,58 @@ def end_family_season_and_reward():
     conn.close()
     print("\n✅ НАГРАДЫ ТОП-10 ВЫДАНЫ!")
 
+    # --- ОТПРАВКА ИТОГОВ В ОБЩИЙ ЧАТ ---
+    chat_id_for_news = -1003775279442 # <--- ВСТАВЬ СЮДА ID СВОЕГО ЧАТА!
+    
+    if top_families:
+        winners_text = "🏆 <b>ИТОГИ СЕЗОНА СЕМЕЙ!</b> 🏆\n\n"
+        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+        
+        for place, (fam_id, fam_name, owner_id, rep) in enumerate(top_families, 1):
+            medal = medals.get(place, "🏅")
+            if place <= 5: 
+                winners_text += f"{medal} <b>{place} место:</b> {fam_name} (Владелец: <a href='tg://user?id={owner_id}'>{owner_id}</a>) — {rep} ⭐\n"
+                
+        winners_text += "\n🎁 Награды уже начислены владельцам! Проверьте ЛС.\n"
+        winners_text += "🔥 <b>Новый сезон уже начался! Собирайте онлайн и качайте репутацию!</b>"
+        
+        send_tg_message(chat_id_for_news, winners_text)
+        print("📢 Итоги сезона отправлены в общий чат!")
+
+# --- АНАЛИТИКА ---
+def show_logs(uid):
+    conn = get_conn(); c = conn.cursor()
+    c.execute("SELECT first_name, username, registered, last_active FROM users WHERE user_id = ?", (uid,))
+    u = c.fetchone()
+    if not u: print("❌ Игрок не найден."); return
+    print(f"👤 {u[0]} (@{u[1]}) | ID: {uid}")
+    c.execute("SELECT case_type, opens FROM case_stats WHERE user_id = ?", (uid,))
+    cases = c.fetchall()
+    if cases:
+        print("\n📦 КЕЙСЫ:")
+        for row in cases: print(f"  {row[0]}: {row[1]}")
+    c.execute("SELECT roulette_wins, roulette_losses FROM title_stats WHERE user_id = ?", (uid,))
+    stats = c.fetchone()
+    if stats: print(f"\n🎰 Рулетка: Побед {stats[0]}, Проигрышей {stats[1]}")
+    conn.close()
+
+def spy_user(uid):
+    conn = get_conn(); c = conn.cursor()
+    c.execute("SELECT amount, type, details, timestamp FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 10", (uid,))
+    trans = c.fetchall()
+    print(f"🕵️ ШПИОНАЖ ID {uid}:")
+    if not trans: print("  Нет транзакций.")
+    for t in trans: print(f"  {t[3]} | {t[1]} | {int(str(t[0]).lstrip('0') or '0')} | {t[2]}")
+    conn.close()
+
+def show_top():
+    conn = get_conn(); c = conn.cursor()
+    c.execute("SELECT user_id, first_name, balance FROM users WHERE is_left = 0 ORDER BY CAST(balance AS INTEGER) DESC LIMIT 10")
+    top = c.fetchall()
+    print("\n🏆 ТОП-10 ИГРОКОВ:")
+    for i, row in enumerate(top, 1):
+        print(f"  {i}. {row[1]} (ID: {row[0]}) — {int(str(row[2]).lstrip('0') or '0')}")
+    conn.close()
 
 def db_backup():
     if not os.path.exists("backups"): os.makedirs("backups")
