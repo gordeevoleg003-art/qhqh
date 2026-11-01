@@ -7,7 +7,7 @@ import os
 import shutil
 
 DB_PATH = "game_bot.db"
-BOT_TOKEN = "8703857750:AAGWCvf_kgaMyigpNSDfwyLFzS2Sl8ppLig" # ЗАМЕНИ НА НОВЫЙ!
+BOT_TOKEN = "8703857750:AAFx0cjnSg2R7rUu5TZXQLyaTEjBK1sXo18" # ЗАМЕНИ НА НОВЫЙ!
 
 def big_normalize(value):
     try: v = int(value)
@@ -365,7 +365,7 @@ def end_family_season_and_reward():
     print("\n✅ НАГРАДЫ ТОП-10 ВЫДАНЫ!")
 
     # --- ОТПРАВКА ИТОГОВ В ОБЩИЙ ЧАТ ---
-    chat_id_for_news = -1003775279442 # <--- ВСТАВЬ СЮДА ID СВОЕГО ЧАТА!
+    chat_id_for_news = -1003825044369 # <--- ВСТАВЬ СЮДА ID СВОЕГО ЧАТА!
     
     if top_families:
         winners_text = "🏆 <b>ИТОГИ СЕЗОНА СЕМЕЙ!</b> 🏆\n\n"
