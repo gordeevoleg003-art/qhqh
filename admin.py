@@ -7,8 +7,7 @@ import os
 import shutil
 
 DB_PATH = "game_bot.db"
-# ⚠️ Впиши свой токен, если хочешь, чтобы бот присылал уведомления игрокам
-BOT_TOKEN = "8703857750:AAGWCvf_kgaMyigpNSDfwyLFzS2Sl8ppLig" 
+BOT_TOKEN = "8703857750:AAGWCvf_kgaMyigpNSDfwyLFzS2Sl8ppLig" # ЗАМЕНИ НА НОВЫЙ!
 
 def big_normalize(value):
     try: v = int(value)
@@ -19,7 +18,7 @@ def big_normalize(value):
 def get_conn(): return sqlite3.connect(DB_PATH)
 
 def send_tg_message(chat_id, text):
-    if "ТВОЙ_ТОКЕН_ЗДЕСЬ" in BOT_TOKEN or not BOT_TOKEN: return
+    if not BOT_TOKEN: return
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         data = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode('utf-8')
@@ -35,22 +34,15 @@ def show_help():
 1. Игроки и Экономика:
    money/addmoney/frik/addfrik, role, title, reset, reset_cd, res, card, status, vip
    tax, treasury, mafia, clear_auctions, setmult, freeze, unfreeze
-
-2. Модерация и Массовые действия:
-   ban ID ДНИ ПРИЧИНА, unban ID, mute ID МИНУТЫ ПРИЧИНА
-   unmuteall, banlist, mutelist
-   allmoney СУММА (Выдать всем), giftall КЕЙС (Выдать кейс всем)
-
-3. 📊 АНАЛИТИКА:
-   logs ID (Полный лог), spy ID (Транзакции), top (Топ-10), checkdb, dbbackup
-
-4. 👨‍👩‍👧 СЕМЬИ (НОВОЕ):
-   setfamily ID ИМЯ, kickfamily ID
-   family_season_start (Обнулить репутацию)
-   family_season_end (Выдать награды Топ-10)
-
-5. ⚠️ HARD RESET:
-   hardreset (ПОЛНЫЙ СБРОС ВСЕГО)
+2. Модерация:
+   ban ID ДНИ ПРИЧИНА, unban ID, mute ID МИНУТЫ ПРИЧИНА, unmuteall, banlist, mutelist
+   allmoney СУММА, giftall КЕЙС
+3. АНАЛИТИКА:
+   logs ID, spy ID, top, checkdb, dbbackup
+4. СЕМЬИ:
+   setfamily ID ИМЯ, kickfamily ID, family_season_start, family_season_end
+5. HARD RESET:
+   hardreset
 ======================================================
 """)
 
@@ -199,6 +191,7 @@ def mute_user(uid, minutes=60, reason="Console Mute"):
     print(f"✅ Игрок {uid} замьючен на {minutes} минут.")
     send_tg_message(uid, f"🔇 <b>Ты замьючен на {minutes} мин</b>\nПричина: {reason}")
 
+
 def unmute_all():
     conn = get_conn(); c = conn.cursor()
     c.execute("DELETE FROM mutes")
@@ -305,36 +298,54 @@ def start_family_season():
 
 def end_family_season_and_reward():
     print("🏆 ЗАВЕРШЕНИЕ СЕЗОНА СЕМЕЙ (ТОП-10)...")
-    conn = get_conn(); c = conn.cursor()
+    conn = get_conn()
+    c = conn.cursor()
     c.execute("SELECT id, name, owner_id, reputation FROM families ORDER BY reputation DESC LIMIT 10")
     top_families = c.fetchall()
-    if not top_families: print("❌ Семей нет."); conn.close(); return
+    
+    if not top_families:
+        print("❌ Семей нет.")
+        conn.close()
+        return
 
     rewards = {
-        1: {"points": 300_000_000, "card": "akashi", "rarity": "legendary", "title": "👑 Сезонный Чемпион"},
-        2: {"points": 200_000_000, "card": "kuroko_rare", "rarity": "rare", "title": "🥈 Вице-Чемпион"},
-        3: {"points": 150_000_000, "card": "aomine", "rarity": "epic", "title": "🥉 Бронза"},
-        4: {"points": 100_000_000, "card": "murasakibara", "rarity": "epic", "title": "Топ-4"},
-        5: {"points": 90_000_000, "card": "midorima", "rarity": "epic", "title": "Топ-5"},
-        6: {"points": 75_000_000, "card": "kise", "rarity": "rare", "title": "Топ-6"},
-        7: {"points": 60_000_000, "card": "momoi", "rarity": "rare", "title": "Топ-7"},
-        8: {"points": 50_000_000, "card": "riko", "rarity": "common", "title": "Топ-8"},
-        9: {"points": 40_000_000, "card": "hyuga", "rarity": "common", "title": "Топ-9"},
-        10: {"points": 30_000_000, "card": "izuki", "rarity": "common", "title": "Топ-10"}
+        1: {
+            "points": 7_000_000_000, 
+            "cards": [("akashi", "legendary"), ("akashi", "legendary"), ("kuroko_rare", "rare")], 
+            "title": "👑 Сезонный Чемпион"
+        },
+        2: {"points": 3_000_000_000, "cards": [("aomine", "epic"), ("kise", "rare")], "title": "🥈 Вице-Чемпион"},
+        3: {"points": 1_500_000_000, "cards": [("murasakibara", "epic"), ("momoi", "rare")], "title": "🥉 Бронза"},
+        4: {"points": 800_000_000, "cards": [("midorima", "epic"), ("riko", "common")], "title": "Топ-4"},
+        5: {"points": 500_000_000, "cards": [("hyuga", "common"), ("izuki", "common")], "title": "Топ-5"},
+        6: {"points": 300_000_000, "cards": [("kagami", "common")], "title": "Топ-6"},
+        7: {"points": 150_000_000, "cards": [("kuroko", "common")], "title": "Топ-7"},
+        8: {"points": 100_000_000, "cards": [("kuroko", "common")], "title": "Топ-8"},
+        9: {"points": 50_000_000, "cards": [], "title": "Топ-9"},
+        10: {"points": 25_000_000, "cards": [], "title": "Топ-10"}
     }
 
     for place, (fam_id, fam_name, owner_id, rep) in enumerate(top_families, 1):
         rew = rewards.get(place)
-        if not rew: continue
+        if not rew:
+            continue
+            
         print(f"🏅 Место {place}: '{fam_name}' (ID: {owner_id})")
+        
         c.execute("SELECT balance FROM users WHERE user_id = ?", (owner_id,))
         row = c.fetchone()
         if row:
             cur = int(str(row[0]).lstrip('0') or '0')
             c.execute("UPDATE users SET balance = ? WHERE user_id = ?", (big_normalize(cur + rew["points"]), owner_id))
-        give_card_silent(owner_id, rew["card"], rew["rarity"])
-        if rew["title"]: c.execute("INSERT OR IGNORE INTO titles (user_id, title_key, custom_text) VALUES (?, ?, ?)", (owner_id, f"custom_{rew['title']}", rew["title"]))
-    conn.commit(); conn.close()
+        
+        for c_key, c_rarity in rew["cards"]:
+            give_card_silent(owner_id, c_key, c_rarity)
+                
+        if rew["title"]:
+            c.execute("INSERT OR IGNORE INTO titles (user_id, title_key, custom_text) VALUES (?, ?, ?)", (owner_id, f"custom_{rew['title']}", rew['title']))
+            
+    conn.commit()
+    conn.close()
     print("\n✅ НАГРАДЫ ТОП-10 ВЫДАНЫ!")
 
 # --- АНАЛИТИКА ---
