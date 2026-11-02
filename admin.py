@@ -535,30 +535,30 @@ import random
 import string
 
 def rasat(amount, count):
-    # Генерируем случайный код из 16 символов
+    # Генерируем код
     code = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
     
-    # Сохраняем код и награду в базу (чтобы бот знал, кому давать)
     conn = get_conn(); c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('promo_active_code', ?)", (code,))
-    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('promo_active_amount', ?)", (str(amount),))
-    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('promo_active_count', ?)", (str(count),))
+    # Очищаем старые данные от прошлой халявы
+    c.execute("DELETE FROM settings WHERE key LIKE 'promo_active_%'")
+    
+    # Записываем новые данные
+    c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_code', ?)", (code,))
+    c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_amount', ?)", (str(amount),))
+    c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_left', ?)", (str(count),)) # Сколько осталось
+    c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_users', ?)", (",",)) # Список тех, кто забрал (начинается с запятой)
     conn.commit(); conn.close()
     
-    # Отправляем в чат
     msg = (f"🎁 <b>ХАЛЯВА!</b> 🎁\n\n"
            f"Кто первый успеет — тот и заберет!\n"
-           f"💰 Награда: <b>{amount}</b> поинтов\n"
+           f"💰 Награда: <b>{format(amount)}</b> поинтов\n"
            f"👥 Количество победителей: <b>{count}</b>\n\n"
            f"Напиши в чат:\n"
            f"<code>/nagradaa {code}</code>\n\n"
            f"⚡️ Успей!")
     
     send_tg_message(CHAT_ID_NEWS, msg)
-    print(f"✅ Халява запущена! Код: {code}")
-
-# И в блоке if __name__ добавь:
-# elif cmd == "rasat" and len(sys.argv) >= 4: rasat(int(sys.argv[2]), int(sys.argv[3]))
+    print(f"✅ Халява запущена! Код: {code} | Победителей: {count}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: show_help()
