@@ -625,3 +625,6 @@ if __name__ == "__main__":
             elif cmd == "hardreset": hard_reset()
             else: print("❌ Ошибка. Напиши 'python admin.py' для списка команд.")
         except Exception as e: print(f"❌ Ошибка: {e}")
+
+
+# ====== сосал ======
