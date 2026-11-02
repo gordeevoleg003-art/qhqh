@@ -8,7 +8,7 @@ import shutil
 
 DB_PATH = "game_bot.db"
 BOT_TOKEN = "8703857750:AAFx0cjnSg2R7rUu5TZXQLyaTEjBK1sXo18"
-CHAT_ID_NEWS = 3825044369 # Единый чат для всех новостей
+CHAT_ID_NEWS = -1003825044369 # Единый чат для всех новостей
 
 def big_normalize(value):
     try: v = int(value)
