@@ -560,6 +560,16 @@ def rasat(amount, count):
     send_tg_message(CHAT_ID_NEWS, msg)
     print(f"✅ Халява запущена! Код: {code} | Победителей: {count}")
 
+
+def mafiaf_start(reward):
+    # Запускаем игру через базу настроек
+    conn = get_conn(); c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('mafia_prize', ?)", (str(reward),))
+    conn.commit(); conn.close()
+    
+    send_tg_message(CHAT_ID_NEWS, f"🎭 <b>НАБОР В МАФИЮ!</b>\n\n💰 Приз каждому победителю: <b>{format(reward)}</b>\n\nЖмите кнопку ниже, чтобы участвовать! (Нужно 7 человек)")
+    print("✅ Мафия запущена!")
+
 if __name__ == "__main__":
     if len(sys.argv) < 2: show_help()
     else:
@@ -573,6 +583,7 @@ if __name__ == "__main__":
             elif cmd == "title" and len(sys.argv) >= 4: give_title(int(sys.argv[2]), " ".join(sys.argv[3:]))
             elif cmd == "reset" and len(sys.argv) >= 3: reset_user(int(sys.argv[2]))
             elif cmd == "reset_cd" and len(sys.argv) >= 3: reset_cd(int(sys.argv[2]))
+            elif cmd == "mafiaf" and len(sys.argv) >= 3: mafiaf_start(int(sys.argv[2]))
             elif cmd == "res" and len(sys.argv) >= 5: give_res(int(sys.argv[2]), sys.argv[3], int(sys.argv[4]))
             elif cmd == "card" and len(sys.argv) >= 4: give_card(int(sys.argv[2]), sys.argv[3])
             elif cmd == "status" and len(sys.argv) >= 4: give_status(int(sys.argv[2]), sys.argv[3])
