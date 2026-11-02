@@ -18,7 +18,15 @@ def big_normalize(value):
     if v < 0: v = 0
     return str(v).zfill(100)
 
-def get_conn(): return sqlite3.connect(DB_PATH, timeout=60)
+# ✅ ИСПРАВЛЕНО: WAL + ожидание до 60 секунд (не висит вечно, но ждёт)
+def get_conn():
+    conn = sqlite3.connect(DB_PATH, timeout=60)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=60000")  # 60 000 мс = 60 сек
+    except Exception:
+        pass
+    return conn
 
 def send_tg_message(chat_id, text):
     if not BOT_TOKEN: return
