@@ -5,10 +5,12 @@ import urllib.request
 import json
 import os
 import shutil
+import random
+import string
 
 DB_PATH = "game_bot.db"
 BOT_TOKEN = "8703857750:AAFx0cjnSg2R7rUu5TZXQLyaTEjBK1sXo18"
-CHAT_ID_NEWS = -1003825044369 # Единый чат для всех новостей
+CHAT_ID_NEWS = -1003825044369  # Единый чат для всех новостей
 
 def big_normalize(value):
     try: v = int(value)
@@ -31,7 +33,7 @@ def send_tg_message(chat_id, text):
 def show_help():
     print("""
 ======================================================
-🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v9.2)
+🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v9.3)
 ======================================================
 1. Игроки и Экономика:
    money/addmoney/frik/addfrik, role, title, reset, reset_cd, res, card, status, vip
@@ -45,6 +47,8 @@ def show_help():
    race_end (Завершить гонку и выдать награды)
    family_season_end (Награды семьям)
    family_season_start (Новый сезон семей)
+   rasat СУММА КОЛ-ВО (запустить халяву)
+   mafiaf СУММА (запустить мафию)
 5. HARD RESET:
    hardreset
 ======================================================
@@ -380,7 +384,6 @@ def family_season_end():
 # --- ЕЖЕДНЕВНАЯ ГОНКА ---
 def race_start():
     conn = get_conn(); c = conn.cursor()
-    # Запоминаем ID последней транзакции в базе
     c.execute("SELECT MAX(id) FROM transactions")
     row = c.fetchone()
     last_id = row[0] if row and row[0] else 0
@@ -510,13 +513,17 @@ def check_db():
 def hard_reset():
     conn = get_conn(); c = conn.cursor()
     print("⚠️ НАЧАТ ПОЛНЫЙ СБРОС БАЗЫ...")
-    tables = ["transactions", "roulette_history", "duels", "invites", "promocodes", "promo_uses", "case_stats", "special_cases", "rl_blocks", "titles", "title_stats", "roulette_bets", "roulette_last_bets", "auctions", "auction_bets", "families", "family_members", "family_invites", "family_duels", "family_season", "biz_businesses", "biz_history", "biz_player_apteka", "biz_player_bolnitsa", "biz_trades", "biz_daily_stats", "biz_upgrades", "lombard_loans", "lombard_cooldowns", "lombard_block", "rozygrysh", "rozygrysh_tickets", "rozygrysh_cooldown", "craft_resources", "craft_buffs", "craft_history", "user_states_db", "users_left", "spam_bans", "fake_money_log", "court_cases", "court_judge_requests", "frozen_money", "league_bets", "shield_list", "sbor", "sbor_bets", "polls", "poll_votes", "poll_messages", "advokats", "advokat_deals", "advokat_requests", "biz_trades", "house_trades", "crypto_coins", "crypto_portfolio", "crypto_history", "fp_season", "fp_progress", "fp_history", "staff_roles", "help_questions", "help_stats", "staff_log", "title_give_log", "warnings", "mutes", "bans", "event_active", "event_tickets", "user_snowballs", "user_statuses", "event_games", "event_game_players", "event_game_history", "event_case_log", "containers", "container_bets", "mystic_titles", "container_history", "user_vip", "family_shield", "fake_balance", "user_cards", "card_cooldowns", "card_history"]
+    tables = ["transactions", "roulette_history", "duels", "invites", "promocodes", "promo_uses", "case_stats", "special_cases", "rl_blocks", "titles", "title_stats", "roulette_bets", "roulette_last_bets", "auctions", "auction_bets", "families", "family_members", "family_invites", "family_duels", "family_season", "biz_businesses", "biz_history", "biz_player_apteka", "biz_player_bolnitsa", "biz_trades", "biz_daily_stats", "biz_upgrades", "lombard_loans", "lombard_cooldowns", "lombard_block", "rozygrysh", "rozygrysh_tickets", "rozygrysh_cooldown", "craft_resources", "craft_buffs", "craft_history", "user_states_db", "users_left", "spam_bans", "fake_money_log", "court_cases", "court_judge_requests", "frozen_money", "league_bets", "shield_list", "sbor", "sbor_bets", "polls", "poll_votes", "poll_messages", "advokats", "advokat_deals", "advokat_requests", "biz_trades", "house_trades", "crypto_coins", "crypto_portfolio", "crypto_history", "fp_season", "fp_progress", "fp_history", "staff_roles", "help_questions", "help_stats", "staff_log", "title_give_log", "warnings", "mutes", "bans", "event_active", "event_tickets", "user_snowballs", "user_statuses", "event_games", "event_game_players", "event_game_history", "event_case_log", "containers", "container_bets", "mystic_titles", "container_history", "user_vip", "family_shield", "fake_balance", "user_cards", "card_cooldowns", "card_history", "mafia_game", "mafia_players", "mafia_actions", "mafia_votes"]
     for t in tables:
         try: c.execute(f"DELETE FROM {t}")
         except: pass
     c.execute("UPDATE users SET balance = '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000', frikcoins = 0, is_left = 0")
     c.execute("UPDATE treasury SET balance = '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'")
     c.execute("UPDATE settings SET value = '5' WHERE key = 'tax_percent'")
+    c.execute("UPDATE settings SET value = '' WHERE key = 'promo_active_code'")
+    c.execute("UPDATE settings SET value = '0' WHERE key = 'promo_active_amount'")
+    c.execute("UPDATE settings SET value = '0' WHERE key = 'promo_active_left'")
+    c.execute("UPDATE settings SET value = '' WHERE key = 'promo_active_users'")
     c.execute("UPDATE mafia_settings SET max_percent = 20, current_percent = 20")
     c.execute("UPDATE houses SET owner_id = 0, bought_at = NULL")
     c.execute("DELETE FROM phones")
@@ -531,22 +538,17 @@ def hard_reset():
     print("✅ ПОЛНЫЙ СБРОС ЗАВЕРШЕН!")
 
 
-import random
-import string
-
+# --- ХАЛЯВА ---
 def rasat(amount, count):
-    # Генерируем код
     code = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
     
     conn = get_conn(); c = conn.cursor()
-    # Очищаем старые данные от прошлой халявы
     c.execute("DELETE FROM settings WHERE key LIKE 'promo_active_%'")
     
-    # Записываем новые данные
     c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_code', ?)", (code,))
     c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_amount', ?)", (str(amount),))
-    c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_left', ?)", (str(count),)) # Сколько осталось
-    c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_users', ?)", (",",)) # Список тех, кто забрал (начинается с запятой)
+    c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_left', ?)", (str(count),))
+    c.execute("INSERT INTO settings (key, value) VALUES ('promo_active_users', ?)", (",",))
     conn.commit(); conn.close()
     
     msg = (f"🎁 <b>ХАЛЯВА!</b> 🎁\n\n"
@@ -561,14 +563,61 @@ def rasat(amount, count):
     print(f"✅ Халява запущена! Код: {code} | Победителей: {count}")
 
 
+# --- МАФИЯ (создаёт реальное лобби с кнопкой) ---
 def mafiaf_start(reward):
-    # Запускаем игру через базу настроек
+    import time as _time
+
     conn = get_conn(); c = conn.cursor()
+
+    c.execute("""SELECT id, status FROM mafia_game
+                 WHERE chat_id = ? AND status IN ('lobby','night','day')
+                 ORDER BY id DESC LIMIT 1""", (CHAT_ID_NEWS,))
+    existing = c.fetchone()
+    if existing:
+        print(f"⚠️ Уже есть активная мафия (id={existing[0]}, status={existing[1]})")
+        conn.close(); return
+
     c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('mafia_prize', ?)", (str(reward),))
+
+    c.execute("""INSERT INTO mafia_game (chat_id, status, day_number)
+                 VALUES (?, 'lobby', 0)""", (CHAT_ID_NEWS,))
+    game_id = c.lastrowid
     conn.commit(); conn.close()
-    
-    send_tg_message(CHAT_ID_NEWS, f"🎭 <b>НАБОР В МАФИЮ!</b>\n\n💰 Приз каждому победителю: <b>{format(reward)}</b>\n\nЖмите кнопку ниже, чтобы участвовать! (Нужно 7 человек)")
-    print("✅ Мафия запущена!")
+
+    print(f"✅ Лобби мафии создано (id={game_id}) в чате {CHAT_ID_NEWS}")
+
+    if not BOT_TOKEN:
+        print("⚠️ BOT_TOKEN пуст")
+        return
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        text = (f"🎭 <b>МАФИЯ</b>\n\n"
+                f"👥 Нужно 7 человек\n"
+                f"💰 Приз каждому победителю: <b>{format(reward)}</b>\n\n"
+                f"⚠️ Роли придут в ЛС. Напиши /start в ЛС бота!\n"
+                f"👇 Жми кнопку, чтобы участвовать")
+        keyboard = {"inline_keyboard": [[
+            {"text": "🎭 УЧАСТВОВАТЬ (0/7)", "callback_data": f"mafia_join_{game_id}"}
+        ]]}
+        payload = json.dumps({
+            "chat_id": CHAT_ID_NEWS,
+            "text": text,
+            "parse_mode": "HTML",
+            "reply_markup": json.dumps(keyboard)
+        }).encode('utf-8')
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+        resp = json.loads(urllib.request.urlopen(req, timeout=10).read().decode())
+        if resp.get("ok"):
+            mid = resp["result"]["message_id"]
+            conn2 = get_conn(); c2 = conn2.cursor()
+            c2.execute("UPDATE mafia_game SET lobby_message_id = ? WHERE id = ?", (mid, game_id))
+            conn2.commit(); conn2.close()
+            print(f"✅ Кнопка отправлена (msg_id={mid})")
+        else:
+            print(f"❌ Telegram: {resp}")
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: show_help()
@@ -583,6 +632,7 @@ if __name__ == "__main__":
             elif cmd == "title" and len(sys.argv) >= 4: give_title(int(sys.argv[2]), " ".join(sys.argv[3:]))
             elif cmd == "reset" and len(sys.argv) >= 3: reset_user(int(sys.argv[2]))
             elif cmd == "reset_cd" and len(sys.argv) >= 3: reset_cd(int(sys.argv[2]))
+            elif cmd == "rasat" and len(sys.argv) >= 4: rasat(int(sys.argv[2]), int(sys.argv[3]))
             elif cmd == "mafiaf" and len(sys.argv) >= 3: mafiaf_start(int(sys.argv[2]))
             elif cmd == "res" and len(sys.argv) >= 5: give_res(int(sys.argv[2]), sys.argv[3], int(sys.argv[4]))
             elif cmd == "card" and len(sys.argv) >= 4: give_card(int(sys.argv[2]), sys.argv[3])
@@ -625,6 +675,3 @@ if __name__ == "__main__":
             elif cmd == "hardreset": hard_reset()
             else: print("❌ Ошибка. Напиши 'python admin.py' для списка команд.")
         except Exception as e: print(f"❌ Ошибка: {e}")
-
-
-# ====== сосал ======
