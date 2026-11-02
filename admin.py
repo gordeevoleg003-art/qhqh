@@ -8,7 +8,7 @@ import shutil
 
 DB_PATH = "game_bot.db"
 BOT_TOKEN = "8703857750:AAFx0cjnSg2R7rUu5TZXQLyaTEjBK1sXo18"
-CHAT_ID_NEWS = -1003825044369 # Единый чат для всех новостей
+CHAT_ID_NEWS = 3825044369 # Единый чат для всех новостей
 
 def big_normalize(value):
     try: v = int(value)
@@ -529,6 +529,36 @@ def hard_reset():
     c.execute("INSERT INTO biz_businesses (biz_type, name, min_bet, owner_id, status, last_payment) VALUES ('league', '⚽ Лига чемпионов', '200000000', 6548175188, 'owned', ?)", (now_str,))
     conn.commit(); conn.close()
     print("✅ ПОЛНЫЙ СБРОС ЗАВЕРШЕН!")
+
+
+import random
+import string
+
+def rasat(amount, count):
+    # Генерируем случайный код из 16 символов
+    code = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+    
+    # Сохраняем код и награду в базу (чтобы бот знал, кому давать)
+    conn = get_conn(); c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('promo_active_code', ?)", (code,))
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('promo_active_amount', ?)", (str(amount),))
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('promo_active_count', ?)", (str(count),))
+    conn.commit(); conn.close()
+    
+    # Отправляем в чат
+    msg = (f"🎁 <b>ХАЛЯВА!</b> 🎁\n\n"
+           f"Кто первый успеет — тот и заберет!\n"
+           f"💰 Награда: <b>{amount}</b> поинтов\n"
+           f"👥 Количество победителей: <b>{count}</b>\n\n"
+           f"Напиши в чат:\n"
+           f"<code>/nagradaa {code}</code>\n\n"
+           f"⚡️ Успей!")
+    
+    send_tg_message(CHAT_ID_NEWS, msg)
+    print(f"✅ Халява запущена! Код: {code}")
+
+# И в блоке if __name__ добавь:
+# elif cmd == "rasat" and len(sys.argv) >= 4: rasat(int(sys.argv[2]), int(sys.argv[3]))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: show_help()
