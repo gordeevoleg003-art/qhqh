@@ -18,12 +18,11 @@ def big_normalize(value):
     if v < 0: v = 0
     return str(v).zfill(100)
 
-# ✅ ИСПРАВЛЕНО: WAL + ожидание до 60 секунд (не висит вечно, но ждёт)
 def get_conn():
     conn = sqlite3.connect(DB_PATH, timeout=60)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=60000")  # 60 000 мс = 60 сек
+        conn.execute("PRAGMA busy_timeout=60000")
     except Exception:
         pass
     return conn
@@ -41,7 +40,7 @@ def send_tg_message(chat_id, text):
 def show_help():
     print("""
 ======================================================
-🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v9.3)
+🛠 МЕГА-ПУЛЬТ УПРАВЛЕНИЯ (v9.5)
 ======================================================
 1. Игроки и Экономика:
    money/addmoney/frik/addfrik, role, title, reset, reset_cd, res, card, status, vip
@@ -57,7 +56,10 @@ def show_help():
    family_season_start (Новый сезон семей)
    rasat СУММА КОЛ-ВО (запустить халяву)
    mafiaf СУММА (запустить мафию)
-5. HARD RESET:
+5. АУРА:
+   setaura ID СУММА (установить ауру)
+   aura_to_points ID (обменять ауру на поинты)
+6. HARD RESET:
    hardreset
 ======================================================
 """)
@@ -185,6 +187,37 @@ def unfreeze_player(uid):
     conn.commit(); conn.close()
     print(f"✅ Игрок {uid} разморожен.")
 
+# --- АУРА ---
+def set_aura_console(uid, amount):
+    conn = get_conn(); c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO user_aura (user_id, aura) VALUES (?, ?)", (uid, amount))
+    conn.commit(); conn.close()
+    print(f"✅ Аура {uid} УСТАНОВЛЕНА на {amount}")
+
+def aura_to_points(uid, rate=500000):
+    conn = get_conn(); c = conn.cursor()
+    c.execute("SELECT aura FROM user_aura WHERE user_id = ?", (uid,))
+    row = c.fetchone()
+    if not row or row[0] <= 0:
+        print(f"❌ У игрока {uid} нет ауры!")
+        conn.close()
+        return
+    
+    aura_amount = row[0]
+    points_to_add = aura_amount * rate
+    
+    c.execute("SELECT balance FROM users WHERE user_id = ?", (uid,))
+    bal_row = c.fetchone()
+    if bal_row:
+        cur_bal = int(str(bal_row[0]).lstrip('0') or '0')
+        new_bal = cur_bal + points_to_add
+        c.execute("UPDATE users SET balance = ? WHERE user_id = ?", (big_normalize(new_bal), uid))
+        c.execute("UPDATE user_aura SET aura = 0 WHERE user_id = ?", (uid,))
+        conn.commit()
+        print(f"✅ {aura_amount} ауры обменяно на {points_to_add} поинтов для {uid}")
+    else:
+        print("❌ Игрок не найден в таблице users!")
+    conn.close()
 
 # --- МОДЕРАЦИЯ ---
 def ban_user(uid, days=0, reason="Console Ban"):
@@ -521,7 +554,7 @@ def check_db():
 def hard_reset():
     conn = get_conn(); c = conn.cursor()
     print("⚠️ НАЧАТ ПОЛНЫЙ СБРОС БАЗЫ...")
-    tables = ["transactions", "roulette_history", "duels", "invites", "promocodes", "promo_uses", "case_stats", "special_cases", "rl_blocks", "titles", "title_stats", "roulette_bets", "roulette_last_bets", "auctions", "auction_bets", "families", "family_members", "family_invites", "family_duels", "family_season", "biz_businesses", "biz_history", "biz_player_apteka", "biz_player_bolnitsa", "biz_trades", "biz_daily_stats", "biz_upgrades", "lombard_loans", "lombard_cooldowns", "lombard_block", "rozygrysh", "rozygrysh_tickets", "rozygrysh_cooldown", "craft_resources", "craft_buffs", "craft_history", "user_states_db", "users_left", "spam_bans", "fake_money_log", "court_cases", "court_judge_requests", "frozen_money", "league_bets", "shield_list", "sbor", "sbor_bets", "polls", "poll_votes", "poll_messages", "advokats", "advokat_deals", "advokat_requests", "biz_trades", "house_trades", "crypto_coins", "crypto_portfolio", "crypto_history", "fp_season", "fp_progress", "fp_history", "staff_roles", "help_questions", "help_stats", "staff_log", "title_give_log", "warnings", "mutes", "bans", "event_active", "event_tickets", "user_snowballs", "user_statuses", "event_games", "event_game_players", "event_game_history", "event_case_log", "containers", "container_bets", "mystic_titles", "container_history", "user_vip", "family_shield", "fake_balance", "user_cards", "card_cooldowns", "card_history", "mafia_game", "mafia_players", "mafia_actions", "mafia_votes"]
+    tables = ["transactions", "roulette_history", "duels", "invites", "promocodes", "promo_uses", "case_stats", "special_cases", "rl_blocks", "titles", "title_stats", "roulette_bets", "roulette_last_bets", "auctions", "auction_bets", "families", "family_members", "family_invites", "family_duels", "family_season", "biz_businesses", "biz_history", "biz_player_apteka", "biz_player_bolnitsa", "biz_trades", "biz_daily_stats", "biz_upgrades", "lombard_loans", "lombard_cooldowns", "lombard_block", "rozygrysh", "rozygrysh_tickets", "rozygrysh_cooldown", "craft_resources", "craft_buffs", "craft_history", "user_states_db", "users_left", "spam_bans", "fake_money_log", "court_cases", "court_judge_requests", "frozen_money", "league_bets", "shield_list", "sbor", "sbor_bets", "polls", "poll_votes", "poll_messages", "advokats", "advokat_deals", "advokat_requests", "biz_trades", "house_trades", "crypto_coins", "crypto_portfolio", "crypto_history", "fp_season", "fp_progress", "fp_history", "staff_roles", "help_questions", "help_stats", "staff_log", "title_give_log", "warnings", "mutes", "bans", "event_active", "event_tickets", "user_snowballs", "user_statuses", "event_games", "event_game_players", "event_game_history", "event_case_log", "containers", "container_bets", "mystic_titles", "container_history", "user_vip", "family_shield", "fake_balance", "user_cards", "card_cooldowns", "card_history", "mafia_game", "mafia_players", "mafia_actions", "mafia_votes", "user_aura"]
     for t in tables:
         try: c.execute(f"DELETE FROM {t}")
         except: pass
@@ -681,5 +714,7 @@ if __name__ == "__main__":
             elif cmd == "dbbackup": db_backup()
             elif cmd == "checkdb": check_db()
             elif cmd == "hardreset": hard_reset()
+            elif cmd == "setaura" and len(sys.argv) >= 4: set_aura_console(int(sys.argv[2]), int(sys.argv[3]))
+            elif cmd == "aura_to_points" and len(sys.argv) >= 3: aura_to_points(int(sys.argv[2]))
             else: print("❌ Ошибка. Напиши 'python admin.py' для списка команд.")
         except Exception as e: print(f"❌ Ошибка: {e}")
